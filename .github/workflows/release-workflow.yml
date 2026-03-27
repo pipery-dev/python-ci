@@ -1,0 +1,90 @@
+name: Release Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Branch, tag, or commit SHA to tag and release from.
+        required: false
+        type: string
+        default: main
+      prerelease:
+        description: Mark the GitHub Release as a prerelease.
+        required: false
+        type: boolean
+        default: false
+      draft:
+        description: Create the GitHub Release as a draft.
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  resolve-config:
+    name: Resolve Release Version
+    runs-on: ubuntu-latest
+
+    outputs:
+      workflow_release_version: ${{ steps.resolve.outputs.workflow_release_version }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target }}
+          fetch-depth: 1
+
+      - name: Resolve release version from config
+        id: resolve
+        shell: bash
+        run: >
+          bash ./scripts/github/resolve_workflow_defaults.sh
+          ./workflow-config.json
+          ""
+
+  release:
+    needs: resolve-config
+    name: Tag and Release
+    runs-on: ubuntu-latest
+
+    env:
+      RELEASE_VERSION: ${{ needs.resolve-config.outputs.workflow_release_version }}
+      RELEASE_TARGET: ${{ inputs.target }}
+      RELEASE_PRERELEASE: ${{ inputs.prerelease }}
+      RELEASE_DRAFT: ${{ inputs.draft }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target }}
+          fetch-depth: 0
+
+      - name: Prepare release metadata and assets
+        shell: bash
+        run: bash ./scripts/github/prepare_workflow_release.sh
+
+      - name: Create and push tag
+        shell: bash
+        run: bash ./scripts/github/create_and_push_tag.sh
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          target_commitish: ${{ inputs.target }}
+          name: ${{ env.RELEASE_NAME }}
+          generate_release_notes: true
+          draft: ${{ inputs.draft }}
+          prerelease: ${{ inputs.prerelease }}
+          files: |
+            ${{ env.RELEASE_ZIP }}
+            ${{ env.RELEASE_TAR }}
+
+      - name: Write release summary
+        if: ${{ always() }}
+        shell: bash
+        run: bash ./scripts/github/create_workflow_release_summary.sh

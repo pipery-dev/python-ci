@@ -1,0 +1,306 @@
+name: Python CI
+
+on:
+  workflow_call:
+    inputs:
+      python_versions:
+        description: JSON array of Python versions used for the matrix build.
+        required: false
+        type: string
+        default: ""
+      package_manager:
+        description: Package manager used to install dependencies and build the package.
+        required: false
+        type: string
+        default: pip
+      tests_enabled:
+        description: Run the test stage.
+        required: false
+        type: boolean
+        default: true
+      lint_enabled:
+        description: Run the lint stage.
+        required: false
+        type: boolean
+        default: true
+      cache_enabled:
+        description: Enable dependency caching for supported package managers.
+        required: false
+        type: boolean
+        default: true
+      artifact_name:
+        description: Name used for the uploaded build artifact.
+        required: false
+        type: string
+        default: python-package
+      version_management:
+        description: "Version strategy. Supported values: project, git-tag, timestamp, none."
+        required: false
+        type: string
+        default: project
+      release_repository:
+        description: Optional package repository name or URL used for publishing on tag builds.
+        required: false
+        type: string
+        default: ""
+      custom_build_command:
+        description: Optional command to override the default build command.
+        required: false
+        type: string
+        default: ""
+      custom_test_command:
+        description: Optional command to override the default test command.
+        required: false
+        type: string
+        default: ""
+      custom_lint_command:
+        description: Optional command to override the default lint command.
+        required: false
+        type: string
+        default: ""
+    secrets:
+      release_username:
+        required: false
+      release_password:
+        required: false
+      release_token:
+        required: false
+
+  workflow_dispatch:
+    inputs:
+      python_versions:
+        description: JSON array of Python versions used for the matrix build.
+        required: false
+        type: string
+        default: ""
+      package_manager:
+        description: Package manager used to install dependencies and build the package.
+        required: false
+        type: choice
+        options:
+          - pip
+          - poetry
+          - uv
+        default: pip
+      tests_enabled:
+        description: Run the test stage.
+        required: false
+        type: boolean
+        default: true
+      lint_enabled:
+        description: Run the lint stage.
+        required: false
+        type: boolean
+        default: true
+      cache_enabled:
+        description: Enable dependency caching for supported package managers.
+        required: false
+        type: boolean
+        default: true
+      artifact_name:
+        description: Name used for the uploaded build artifact.
+        required: false
+        type: string
+        default: python-package
+      version_management:
+        description: "Version strategy. Supported values: project, git-tag, timestamp, none."
+        required: false
+        type: choice
+        options:
+          - project
+          - git-tag
+          - timestamp
+          - none
+        default: project
+      release_repository:
+        description: Optional package repository name or URL used for publishing on tag builds.
+        required: false
+        type: string
+        default: ""
+      custom_build_command:
+        description: Optional command to override the default build command.
+        required: false
+        type: string
+        default: ""
+      custom_test_command:
+        description: Optional command to override the default test command.
+        required: false
+        type: string
+        default: ""
+      custom_lint_command:
+        description: Optional command to override the default lint command.
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  resolve-config:
+    name: Resolve Workflow Config
+    runs-on: ubuntu-latest
+
+    outputs:
+      python_versions: ${{ steps.resolve.outputs.python_versions }}
+      selected_primary_python_version: ${{ steps.resolve.outputs.selected_primary_python_version }}
+      config_default_python_version: ${{ steps.resolve.outputs.config_default_python_version }}
+      workflow_version: ${{ steps.resolve.outputs.workflow_version }}
+      workflow_release_version: ${{ steps.resolve.outputs.workflow_release_version }}
+      workflow_repository: ${{ steps.workflow_support.outputs.repository }}
+      workflow_ref: ${{ steps.workflow_support.outputs.ref }}
+
+    steps:
+      - name: Resolve workflow support repository
+        id: workflow_support
+        shell: bash
+        env:
+          WORKFLOW_REF: ${{ github.workflow_ref }}
+        run: |
+          set -euo pipefail
+          workflow_repo="${WORKFLOW_REF%%/.github/workflows/*}"
+          workflow_ref="${WORKFLOW_REF#*@}"
+          echo "repository=${workflow_repo}" >> "${GITHUB_OUTPUT}"
+          echo "ref=${workflow_ref}" >> "${GITHUB_OUTPUT}"
+
+      - name: Checkout workflow support files
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.workflow_support.outputs.repository }}
+          ref: ${{ steps.workflow_support.outputs.ref }}
+          path: .python-ci-workflow
+          sparse-checkout: |
+            scripts
+            workflow-config.json
+
+      - name: Resolve defaults
+        id: resolve
+        shell: bash
+        run: >
+          bash ./.python-ci-workflow/scripts/github/resolve_workflow_defaults.sh
+          ./.python-ci-workflow/workflow-config.json
+          '${{ inputs.python_versions }}'
+
+  python-ci:
+    needs: resolve-config
+    name: Python ${{ matrix.python-version }} / ${{ inputs.package_manager }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ${{ fromJson(needs.resolve-config.outputs.python_versions) }}
+
+    container:
+      image: python:${{ matrix.python-version }}-slim
+
+    env:
+      PACKAGE_MANAGER: ${{ inputs.package_manager }}
+      TESTS_ENABLED: ${{ inputs.tests_enabled }}
+      LINT_ENABLED: ${{ inputs.lint_enabled }}
+      CACHE_ENABLED: ${{ inputs.cache_enabled }}
+      ARTIFACT_NAME: ${{ inputs.artifact_name }}
+      VERSION_MANAGEMENT: ${{ inputs.version_management }}
+      RELEASE_REPOSITORY: ${{ inputs.release_repository }}
+      CUSTOM_BUILD_COMMAND: ${{ inputs.custom_build_command }}
+      CUSTOM_TEST_COMMAND: ${{ inputs.custom_test_command }}
+      CUSTOM_LINT_COMMAND: ${{ inputs.custom_lint_command }}
+      RELEASE_USERNAME: ${{ secrets.release_username }}
+      RELEASE_PASSWORD: ${{ secrets.release_password }}
+      RELEASE_TOKEN: ${{ secrets.release_token }}
+      MATRIX_PYTHON_VERSION: ${{ matrix.python-version }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout workflow support files
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ needs.resolve-config.outputs.workflow_repository }}
+          ref: ${{ needs.resolve-config.outputs.workflow_ref }}
+          path: .python-ci-workflow
+          sparse-checkout: |
+            scripts
+            workflow-config.json
+
+      - name: Validate inputs and resolve commands
+        shell: bash
+        run: bash ./.python-ci-workflow/scripts/github/resolve_inputs.sh
+
+      - name: Restore cache
+        if: ${{ inputs.cache_enabled }}
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CACHE_PATHS }}
+          key: ${{ runner.os }}-${{ env.CACHE_KEY_PREFIX }}-${{ hashFiles('**/pyproject.toml', '**/poetry.lock', '**/uv.lock', '**/requirements*.txt', '**/setup.cfg', '**/setup.py') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ env.CACHE_KEY_PREFIX }}-
+            ${{ runner.os }}-${{ inputs.package_manager }}-
+
+      - name: Setup dependencies and tooling
+        shell: bash
+        run: bash ./.python-ci-workflow/scripts/github/setup_tooling.sh
+
+      - name: Build package
+        shell: bash
+        run: bash ./.python-ci-workflow/scripts/github/build.sh
+
+      - name: Run tests
+        if: ${{ inputs.tests_enabled }}
+        shell: bash
+        run: bash ./.python-ci-workflow/scripts/github/run_stage.sh test "${TEST_COMMAND}"
+
+      - name: Skip tests summary
+        if: ${{ !inputs.tests_enabled }}
+        shell: bash
+        run: bash ./.python-ci-workflow/scripts/github/mark_stage_skipped.sh test
+
+      - name: Run lint
+        if: ${{ inputs.lint_enabled }}
+        shell: bash
+        run: bash ./.python-ci-workflow/scripts/github/run_stage.sh lint "${LINT_COMMAND}"
+
+      - name: Skip lint summary
+        if: ${{ !inputs.lint_enabled }}
+        shell: bash
+        run: bash ./.python-ci-workflow/scripts/github/mark_stage_skipped.sh lint
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}-py${{ matrix.python-version }}
+          path: dist/*
+          if-no-files-found: error
+
+      - name: Validate release version
+        if: ${{ inputs.release_repository != '' && matrix.python-version == needs.resolve-config.outputs.selected_primary_python_version }}
+        shell: bash
+        run: bash ./.python-ci-workflow/scripts/github/validate_release.sh
+
+      - name: Create release tag
+        if: ${{ inputs.release_repository != '' && matrix.python-version == needs.resolve-config.outputs.selected_primary_python_version && env.PACKAGE_VERSION != '' && github.ref_type != 'tag' }}
+        shell: bash
+        run: bash ./.python-ci-workflow/scripts/github/create_release_tag.sh
+
+      - name: Skip tag creation summary
+        if: ${{ !(inputs.release_repository != '' && matrix.python-version == needs.resolve-config.outputs.selected_primary_python_version && env.PACKAGE_VERSION != '' && github.ref_type != 'tag') }}
+        shell: bash
+        run: bash ./.python-ci-workflow/scripts/github/mark_stage_skipped.sh tag
+
+      - name: Publish package
+        if: ${{ inputs.release_repository != '' && matrix.python-version == needs.resolve-config.outputs.selected_primary_python_version }}
+        shell: bash
+        run: bash ./.python-ci-workflow/scripts/github/publish.sh
+
+      - name: Publish summary for non-release runs
+        if: ${{ !(inputs.release_repository != '' && matrix.python-version == needs.resolve-config.outputs.selected_primary_python_version) }}
+        shell: bash
+        run: bash ./.python-ci-workflow/scripts/github/mark_stage_skipped.sh publish
+
+      - name: Write job summary
+        if: ${{ always() }}
+        shell: bash
+        run: bash ./.python-ci-workflow/scripts/github/write_summary.sh

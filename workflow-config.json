@@ -1,0 +1,4 @@
+{
+  "workflow_version": "1.0.0",
+  "default_python_versions": ["3.12", "3.14"]
+}

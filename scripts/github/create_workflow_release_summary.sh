@@ -8,6 +8,8 @@ set -euo pipefail
   echo "| --- | --- |"
   echo "| Version | ${RELEASE_VERSION_NORMALIZED:-not set} |"
   echo "| Tag | ${RELEASE_TAG:-not set} |"
+  echo "| Commit tag | ${RELEASE_COMMIT_TAG:-not set} |"
+  echo "| Commit short hash | ${RELEASE_COMMIT_SHORT_HASH:-not set} |"
   echo "| Target | ${RELEASE_TARGET:-not set} |"
   echo "| Draft | ${RELEASE_DRAFT:-false} |"
   echo "| Prerelease | ${RELEASE_PRERELEASE:-false} |"

@@ -233,7 +233,9 @@ What it does:
 
 - checks out the requested target
 - reads `workflow_version` and the configured default Python version from [`workflow-config.json`](/Users/hamed/Project/pipery-dev/python-ci/workflow-config.json)
-- derives the release version as `<workflow_version>-<default_python_version>`
-- creates and pushes that Git tag if it does not already exist
-- creates or updates a GitHub Release for that tag
+- derives two release tags:
+- `<workflow_version>-<default_python_version>`
+- `<git_commit_short_hash>`
+- creates and pushes both Git tags if they do not already exist
+- creates or updates a GitHub Release for both tags
 - uploads a zip and tar.gz bundle containing the reusable workflow, helper scripts, and README

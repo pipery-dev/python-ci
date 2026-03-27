@@ -38,10 +38,13 @@ print(str(versions[0]))
 PY
 )"
 
+git_commit_short_hash="$(git rev-parse --short HEAD)"
+
 {
   echo "python_versions=${resolved_python_versions}"
   echo "selected_primary_python_version=${selected_primary_python_version}"
   echo "config_default_python_version=${config_default_python_version}"
   echo "workflow_version=${workflow_version}"
+  echo "git_commit_short_hash=${git_commit_short_hash}"
   echo "workflow_release_version=${workflow_version}-${config_default_python_version}"
 } >> "${GITHUB_OUTPUT}"

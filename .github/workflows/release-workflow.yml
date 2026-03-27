@@ -29,6 +29,7 @@ jobs:
 
     outputs:
       workflow_release_version: ${{ steps.resolve.outputs.workflow_release_version }}
+      git_commit_short_hash: ${{ steps.resolve.outputs.git_commit_short_hash }}
 
     steps:
       - name: Checkout repository
@@ -52,6 +53,7 @@ jobs:
 
     env:
       RELEASE_VERSION: ${{ needs.resolve-config.outputs.workflow_release_version }}
+      RELEASE_COMMIT_SHORT_HASH: ${{ needs.resolve-config.outputs.git_commit_short_hash }}
       RELEASE_TARGET: ${{ inputs.target }}
       RELEASE_PRERELEASE: ${{ inputs.prerelease }}
       RELEASE_DRAFT: ${{ inputs.draft }}
@@ -77,6 +79,19 @@ jobs:
           tag_name: ${{ env.RELEASE_TAG }}
           target_commitish: ${{ inputs.target }}
           name: ${{ env.RELEASE_NAME }}
+          generate_release_notes: true
+          draft: ${{ inputs.draft }}
+          prerelease: ${{ inputs.prerelease }}
+          files: |
+            ${{ env.RELEASE_ZIP }}
+            ${{ env.RELEASE_TAR }}
+
+      - name: Create Commit GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_COMMIT_TAG }}
+          target_commitish: ${{ inputs.target }}
+          name: ${{ env.RELEASE_COMMIT_NAME }}
           generate_release_notes: true
           draft: ${{ inputs.draft }}
           prerelease: ${{ inputs.prerelease }}

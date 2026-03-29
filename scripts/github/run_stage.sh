@@ -2,7 +2,7 @@
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-bash "${script_dir}/enter_project_directory.sh"
+source "${script_dir}/enter_project_directory.sh"
 
 stage_name="${1:?stage name is required}"
 command="${2:-}"

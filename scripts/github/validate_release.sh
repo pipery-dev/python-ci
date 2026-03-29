@@ -2,7 +2,7 @@
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-bash "${script_dir}/enter_project_directory.sh"
+source "${script_dir}/enter_project_directory.sh"
 
 if [[ -z "${PACKAGE_VERSION}" ]]; then
   echo "Release flow requires a resolved package version, but PACKAGE_VERSION is empty." >&2

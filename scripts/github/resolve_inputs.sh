@@ -3,7 +3,7 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-bash "${script_dir}/enter_project_directory.sh"
+source "${script_dir}/enter_project_directory.sh"
 
 resolve_finished="false"
 

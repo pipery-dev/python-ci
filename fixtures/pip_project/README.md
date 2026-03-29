@@ -1,1 +1,0 @@
-# fixture-pip-project

@@ -1,0 +1,251 @@
+name: "Python CI"
+description: "Build, test, lint, and optionally publish a Python project with pip, Poetry, or uv."
+author: "Pipery Team"
+branding:
+  icon: "package"
+  color: "black"
+
+inputs:
+  python_versions:
+    description: 'JSON array of Python versions. For the composite action, the first version is used for metadata and cache keys.'
+    required: false
+    default: ""
+  package_manager:
+    description: "Package manager to use: pip, poetry, or uv."
+    required: false
+    default: "pip"
+  tests_enabled:
+    description: "Run the test stage."
+    required: false
+    default: "true"
+  lint_enabled:
+    description: "Run the lint stage."
+    required: false
+    default: "true"
+  cache_enabled:
+    description: "Enable dependency caching for supported package managers."
+    required: false
+    default: "true"
+  project_directory:
+    description: "Relative path to the Python project to build, test, and lint."
+    required: false
+    default: "."
+  artifact_name:
+    description: "Name used for uploaded build artifacts."
+    required: false
+    default: "python-package"
+  version_management:
+    description: "Version strategy: project, git-tag, timestamp, or none."
+    required: false
+    default: "project"
+  release_repository:
+    description: "Optional package repository name or URL used for publishing."
+    required: false
+    default: ""
+  custom_build_command:
+    description: "Optional command to override the default build command."
+    required: false
+    default: ""
+  custom_test_command:
+    description: "Optional command to override the default test command."
+    required: false
+    default: ""
+  custom_lint_command:
+    description: "Optional command to override the default lint command."
+    required: false
+    default: ""
+  release_username:
+    description: "Optional username for package publishing."
+    required: false
+    default: ""
+  release_password:
+    description: "Optional password for package publishing."
+    required: false
+    default: ""
+  release_token:
+    description: "Optional token for package publishing."
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - name: Resolve workflow defaults
+      id: defaults
+      shell: bash
+      run: >
+        bash "${{ github.action_path }}/scripts/github/resolve_workflow_defaults.sh"
+        "${{ github.action_path }}/workflow-config.json"
+        '${{ inputs.python_versions }}'
+
+    - name: Resolve inputs and commands
+      shell: bash
+      env:
+        PACKAGE_MANAGER: ${{ inputs.package_manager }}
+        TESTS_ENABLED: ${{ inputs.tests_enabled }}
+        LINT_ENABLED: ${{ inputs.lint_enabled }}
+        CACHE_ENABLED: ${{ inputs.cache_enabled }}
+        PROJECT_DIRECTORY: ${{ inputs.project_directory }}
+        ARTIFACT_NAME: ${{ inputs.artifact_name }}
+        VERSION_MANAGEMENT: ${{ inputs.version_management }}
+        RELEASE_REPOSITORY: ${{ inputs.release_repository }}
+        CUSTOM_BUILD_COMMAND: ${{ inputs.custom_build_command }}
+        CUSTOM_TEST_COMMAND: ${{ inputs.custom_test_command }}
+        CUSTOM_LINT_COMMAND: ${{ inputs.custom_lint_command }}
+        RELEASE_USERNAME: ${{ inputs.release_username }}
+        RELEASE_PASSWORD: ${{ inputs.release_password }}
+        RELEASE_TOKEN: ${{ inputs.release_token }}
+        MATRIX_PYTHON_VERSION: ${{ steps.defaults.outputs.selected_primary_python_version }}
+        BUILD_REPORT_PATH: .python-ci-reports/${{ inputs.artifact_name }}-report-py${{ steps.defaults.outputs.selected_primary_python_version }}.json
+      run: bash "${{ github.action_path }}/scripts/github/resolve_inputs.sh"
+
+    - name: Restore cache
+      id: cache
+      if: ${{ inputs.cache_enabled == 'true' }}
+      uses: actions/cache@v4
+      with:
+        path: ${{ env.CACHE_PATHS }}
+        key: ${{ runner.os }}-${{ env.CACHE_KEY_PREFIX }}-${{ hashFiles('**/pyproject.toml', '**/poetry.lock', '**/uv.lock', '**/requirements*.txt', '**/setup.cfg', '**/setup.py') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ env.CACHE_KEY_PREFIX }}-
+          ${{ runner.os }}-${{ inputs.package_manager }}-
+
+    - name: Record cache status
+      if: ${{ inputs.cache_enabled == 'true' }}
+      shell: bash
+      env:
+        CACHE_HIT: ${{ steps.cache.outputs.cache-hit }}
+      run: |
+        if [[ "${CACHE_HIT}" == "true" ]]; then
+          bash "${{ github.action_path }}/scripts/github/record_stage_status.sh" cache hit
+        else
+          bash "${{ github.action_path }}/scripts/github/record_stage_status.sh" cache miss
+        fi
+
+    - name: Mark cache skipped
+      if: ${{ inputs.cache_enabled != 'true' }}
+      shell: bash
+      run: bash "${{ github.action_path }}/scripts/github/mark_stage_skipped.sh" cache
+
+    - name: Setup dependencies and tooling
+      shell: bash
+      env:
+        PACKAGE_MANAGER: ${{ inputs.package_manager }}
+        TESTS_ENABLED: ${{ inputs.tests_enabled }}
+        LINT_ENABLED: ${{ inputs.lint_enabled }}
+        PROJECT_DIRECTORY: ${{ inputs.project_directory }}
+        CUSTOM_TEST_COMMAND: ${{ inputs.custom_test_command }}
+        CUSTOM_LINT_COMMAND: ${{ inputs.custom_lint_command }}
+      run: bash "${{ github.action_path }}/scripts/github/setup_tooling.sh"
+
+    - name: Build package
+      shell: bash
+      env:
+        PROJECT_DIRECTORY: ${{ inputs.project_directory }}
+        BUILD_COMMAND: ${{ env.BUILD_COMMAND }}
+        PACKAGE_VERSION: ${{ env.PACKAGE_VERSION }}
+      run: bash "${{ github.action_path }}/scripts/github/build.sh"
+
+    - name: Run tests
+      if: ${{ inputs.tests_enabled == 'true' }}
+      shell: bash
+      env:
+        PROJECT_DIRECTORY: ${{ inputs.project_directory }}
+        TEST_COMMAND: ${{ env.TEST_COMMAND }}
+      run: bash "${{ github.action_path }}/scripts/github/run_stage.sh" test "${TEST_COMMAND}"
+
+    - name: Skip tests summary
+      if: ${{ inputs.tests_enabled != 'true' }}
+      shell: bash
+      run: bash "${{ github.action_path }}/scripts/github/mark_stage_skipped.sh" test
+
+    - name: Run lint
+      if: ${{ inputs.lint_enabled == 'true' }}
+      shell: bash
+      env:
+        PROJECT_DIRECTORY: ${{ inputs.project_directory }}
+        LINT_COMMAND: ${{ env.LINT_COMMAND }}
+      run: bash "${{ github.action_path }}/scripts/github/run_stage.sh" lint "${LINT_COMMAND}"
+
+    - name: Skip lint summary
+      if: ${{ inputs.lint_enabled != 'true' }}
+      shell: bash
+      run: bash "${{ github.action_path }}/scripts/github/mark_stage_skipped.sh" lint
+
+    - name: Upload build artifact
+      uses: actions/upload-artifact@v6
+      with:
+        name: ${{ inputs.artifact_name }}-py${{ steps.defaults.outputs.selected_primary_python_version }}
+        path: ${{ inputs.project_directory }}/dist/*
+        if-no-files-found: error
+
+    - name: Record artifact status
+      shell: bash
+      run: bash "${{ github.action_path }}/scripts/github/record_stage_status.sh" artifact success
+
+    - name: Validate release version
+      if: ${{ inputs.release_repository != '' }}
+      shell: bash
+      env:
+        PROJECT_DIRECTORY: ${{ inputs.project_directory }}
+        PACKAGE_VERSION: ${{ env.PACKAGE_VERSION }}
+        GITHUB_REF_TYPE: ${{ github.ref_type }}
+        GITHUB_REF_NAME: ${{ github.ref_name }}
+        RELEASE_TAG: ${{ env.RELEASE_TAG }}
+      run: bash "${{ github.action_path }}/scripts/github/validate_release.sh"
+
+    - name: Create release tag
+      if: ${{ inputs.release_repository != '' && env.PACKAGE_VERSION != '' && github.ref_type != 'tag' }}
+      shell: bash
+      env:
+        RELEASE_TAG: ${{ env.RELEASE_TAG }}
+      run: bash "${{ github.action_path }}/scripts/github/create_release_tag.sh"
+
+    - name: Skip tag creation summary
+      if: ${{ !(inputs.release_repository != '' && env.PACKAGE_VERSION != '' && github.ref_type != 'tag') }}
+      shell: bash
+      run: bash "${{ github.action_path }}/scripts/github/mark_stage_skipped.sh" tag
+
+    - name: Publish package
+      if: ${{ inputs.release_repository != '' }}
+      shell: bash
+      env:
+        PROJECT_DIRECTORY: ${{ inputs.project_directory }}
+        RELEASE_REPOSITORY: ${{ inputs.release_repository }}
+        RELEASE_USERNAME: ${{ inputs.release_username }}
+        RELEASE_PASSWORD: ${{ inputs.release_password }}
+        RELEASE_TOKEN: ${{ inputs.release_token }}
+      run: bash "${{ github.action_path }}/scripts/github/publish.sh"
+
+    - name: Publish summary for non-release runs
+      if: ${{ inputs.release_repository == '' }}
+      shell: bash
+      run: bash "${{ github.action_path }}/scripts/github/mark_stage_skipped.sh" publish
+
+    - name: Write job summary
+      if: ${{ always() }}
+      shell: bash
+      run: bash "${{ github.action_path }}/scripts/github/write_summary.sh"
+
+    - name: Write build report
+      if: ${{ always() }}
+      shell: bash
+      env:
+        PACKAGE_MANAGER: ${{ inputs.package_manager }}
+        TESTS_ENABLED: ${{ inputs.tests_enabled }}
+        LINT_ENABLED: ${{ inputs.lint_enabled }}
+        CACHE_ENABLED: ${{ inputs.cache_enabled }}
+        PROJECT_DIRECTORY: ${{ inputs.project_directory }}
+        ARTIFACT_NAME: ${{ inputs.artifact_name }}
+        VERSION_MANAGEMENT: ${{ inputs.version_management }}
+        BUILD_REPORT_PATH: .python-ci-reports/${{ inputs.artifact_name }}-report-py${{ steps.defaults.outputs.selected_primary_python_version }}.json
+        MATRIX_PYTHON_VERSION: ${{ steps.defaults.outputs.selected_primary_python_version }}
+      run: python "${{ github.action_path }}/scripts/github/write_build_report.py"
+
+    - name: Upload build report
+      if: ${{ always() }}
+      uses: actions/upload-artifact@v6
+      with:
+        name: ${{ inputs.artifact_name }}-report-py${{ steps.defaults.outputs.selected_primary_python_version }}
+        path: .python-ci-reports/${{ inputs.artifact_name }}-report-py${{ steps.defaults.outputs.selected_primary_python_version }}.json
+        if-no-files-found: error

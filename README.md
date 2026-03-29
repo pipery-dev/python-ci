@@ -121,3 +121,7 @@ It currently defines:
 - [`.github/workflows/python-ci.yml`](/Users/hamed/Project/pipery-dev/python-ci/.github/workflows/python-ci.yml)
 - [`workflow-config.json`](/Users/hamed/Project/pipery-dev/python-ci/workflow-config.json)
 - [`README.md`](/Users/hamed/Project/pipery-dev/python-ci/README.md)
+
+## License
+
+This project is licensed under the MIT License. See [`LICENSE`](/Users/hamed/Project/pipery-dev/python-ci/LICENSE).

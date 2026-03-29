@@ -1,7 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+bash "${script_dir}/enter_project_directory.sh"
+
 start_time="$(date +%s)"
+stage_finished="false"
+
+record_setup_failure() {
+  local exit_code="$?"
+  local duration="$(( $(date +%s) - start_time ))"
+
+  if [[ "${stage_finished}" != "true" ]]; then
+    echo "SETUP_DURATION=${duration}" >> "${GITHUB_ENV}"
+    echo "SETUP_STATUS=failed" >> "${GITHUB_ENV}"
+  fi
+
+  exit "${exit_code}"
+}
+
+trap record_setup_failure ERR
 
 python -m pip install --upgrade pip setuptools wheel
 
@@ -35,4 +53,7 @@ case "${PACKAGE_MANAGER}" in
     ;;
 esac
 
+stage_finished="true"
+trap - ERR
 echo "SETUP_DURATION=$(( $(date +%s) - start_time ))" >> "${GITHUB_ENV}"
+echo "SETUP_STATUS=success" >> "${GITHUB_ENV}"

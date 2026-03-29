@@ -27,6 +27,7 @@ All inputs are optional.
 | `tests_enabled` | boolean | `true` | Enables the test stage. |
 | `lint_enabled` | boolean | `true` | Enables the lint stage. |
 | `cache_enabled` | boolean | `true` | Enables dependency cache restore/save for `pip`, `poetry`, and `uv`. |
+| `project_directory` | string | `.` | Relative path to the Python project directory inside the repository. |
 | `artifact_name` | string | `python-package` | Base name for uploaded artifacts. |
 | `version_management` | string | `project` | Version strategy: `project`, `git-tag`, `timestamp`, or `none`. `project` resolves the version from project metadata when available. |
 | `release_repository` | string | `""` | Optional package repository name or URL used when publishing on tag builds. |
@@ -174,6 +175,42 @@ The cache key includes:
 
 In reusable runs, the workflow checks out its own helper scripts into `.python-ci-workflow/` so the caller repository does not need to copy any support files.
 
+## Fixture Projects
+
+This repository includes fixture projects used to validate both happy-path and failure-path workflow behavior before releasing it:
+
+- [`fixtures/pip_project`](/Users/hamed/Project/pipery-dev/python-ci/fixtures/pip_project)
+- [`fixtures/poetry_project`](/Users/hamed/Project/pipery-dev/python-ci/fixtures/poetry_project)
+- [`fixtures/uv_project`](/Users/hamed/Project/pipery-dev/python-ci/fixtures/uv_project)
+- [`fixtures/build_failure_project`](/Users/hamed/Project/pipery-dev/python-ci/fixtures/build_failure_project)
+- [`fixtures/test_failure_project`](/Users/hamed/Project/pipery-dev/python-ci/fixtures/test_failure_project)
+- [`fixtures/dependency_failure_project`](/Users/hamed/Project/pipery-dev/python-ci/fixtures/dependency_failure_project)
+
+Each workflow run also uploads a machine-readable build report artifact per matrix entry. The release workflow validates those reports against expected values before creating any tags or GitHub Releases.
+
+## Workflow Testing
+
+This repository tests the reusable workflow with both successful and intentionally failing fixture projects.
+
+For a quick manual check, run [`.github/workflows/python-ci.yml`](/Users/hamed/Project/pipery-dev/python-ci/.github/workflows/python-ci.yml) from the Actions tab with `workflow_dispatch` and point `project_directory` at one of the fixtures. Useful examples:
+
+| Scenario | `package_manager` | `project_directory` | Other useful inputs |
+| --- | --- | --- | --- |
+| Default `pip` path | `pip` | `fixtures/pip_project` | leave defaults |
+| Optional path coverage | `pip` | `fixtures/pip_project` | `tests_enabled: false`, `lint_enabled: false`, `cache_enabled: false`, `version_management: none`, `custom_build_command: python -m build` |
+| Poetry fixture | `poetry` | `fixtures/poetry_project` | `custom_test_command: poetry run pytest`, `custom_lint_command: poetry run ruff check .`, `custom_build_command: poetry build` |
+| UV matrix fixture | `uv` | `fixtures/uv_project` | `python_versions: ["3.12", "3.13"]`, `custom_test_command: uv run pytest`, `custom_lint_command: uv run ruff check .`, `custom_build_command: uv build` |
+| Intentional build failure | `pip` | `fixtures/build_failure_project` | `tests_enabled: false`, `lint_enabled: false`, `cache_enabled: false`, `version_management: none`, `custom_build_command: python fail_build.py` |
+| Intentional test failure | `pip` | `fixtures/test_failure_project` | `cache_enabled: false`, `lint_enabled: false` |
+| Unresolvable dependency failure | `pip` | `fixtures/dependency_failure_project` | `tests_enabled: false`, `lint_enabled: false`, `cache_enabled: false`, `version_management: none` |
+
+For full validation before a release, run [`.github/workflows/release-workflow.yml`](/Users/hamed/Project/pipery-dev/python-ci/.github/workflows/release-workflow.yml). That workflow:
+
+- executes the reusable workflow against all fixture projects
+- covers optional branches such as disabled cache, disabled test/lint stages, custom commands, matrix builds, intentional build failures, intentional test failures, and setup failures caused by unresolved dependencies
+- downloads the generated `*-report-py*.json` artifacts
+- validates each report with [`scripts/github/validate_build_report.py`](/Users/hamed/Project/pipery-dev/python-ci/scripts/github/validate_build_report.py) before any tagging or GitHub Release steps begin
+
 ## Workflow Config
 
 Shared workflow metadata lives in [`workflow-config.json`](/Users/hamed/Project/pipery-dev/python-ci/workflow-config.json).
@@ -231,6 +268,10 @@ Use it from the Actions tab with these inputs:
 
 What it does:
 
+- runs the reusable CI workflow against the `pip`, `poetry`, and `uv` fixture projects
+- exercises optional workflow paths such as custom commands, disabled cache, disabled test/lint stages, matrix execution, and expected failure scenarios before release
+- validates the uploaded build report from each fixture run to confirm the resolved commands and stage statuses match expectations
+- requires all fixture validations to pass before any tagging or GitHub release work begins
 - checks out the requested target
 - reads `workflow_version` and the configured default Python version from [`workflow-config.json`](/Users/hamed/Project/pipery-dev/python-ci/workflow-config.json)
 - derives two release tags:

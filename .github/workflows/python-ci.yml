@@ -28,6 +28,16 @@ on:
         required: false
         type: boolean
         default: true
+      allow_failure:
+        description: Allow the workflow job to fail without failing the caller.
+        required: false
+        type: boolean
+        default: false
+      project_directory:
+        description: Relative path to the Python project to build, test, and lint.
+        required: false
+        type: string
+        default: .
       artifact_name:
         description: Name used for the uploaded build artifact.
         required: false
@@ -97,6 +107,16 @@ on:
         required: false
         type: boolean
         default: true
+      allow_failure:
+        description: Allow the workflow job to fail without failing the workflow run.
+        required: false
+        type: boolean
+        default: false
+      project_directory:
+        description: Relative path to the Python project to build, test, and lint.
+        required: false
+        type: string
+        default: .
       artifact_name:
         description: Name used for the uploaded build artifact.
         required: false
@@ -158,12 +178,34 @@ jobs:
           WORKFLOW_REF: ${{ github.workflow_ref }}
         run: |
           set -euo pipefail
-          workflow_repo="${WORKFLOW_REF%%/.github/workflows/*}"
-          workflow_ref="${WORKFLOW_REF#*@}"
+          if [[ -n "${WORKFLOW_REF}" && "${WORKFLOW_REF}" == *"/.github/workflows/"* && "${WORKFLOW_REF}" == *"@"* ]]; then
+            workflow_repo="${WORKFLOW_REF%%/.github/workflows/*}"
+            workflow_ref="${WORKFLOW_REF#*@}"
+          else
+            workflow_repo=""
+            workflow_ref=""
+          fi
           echo "repository=${workflow_repo}" >> "${GITHUB_OUTPUT}"
           echo "ref=${workflow_ref}" >> "${GITHUB_OUTPUT}"
 
+      - name: Checkout repository for local workflow support
+        if: ${{ steps.workflow_support.outputs.repository == '' || steps.workflow_support.outputs.ref == '' }}
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Prepare local workflow support files
+        if: ${{ steps.workflow_support.outputs.repository == '' || steps.workflow_support.outputs.ref == '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .python-ci-workflow
+          mkdir -p .python-ci-workflow
+          cp -R ./scripts .python-ci-workflow/scripts
+          cp ./workflow-config.json .python-ci-workflow/workflow-config.json
+
       - name: Checkout workflow support files
+        if: ${{ steps.workflow_support.outputs.repository != '' && steps.workflow_support.outputs.ref != '' }}
         uses: actions/checkout@v4
         with:
           repository: ${{ steps.workflow_support.outputs.repository }}
@@ -185,6 +227,7 @@ jobs:
     needs: resolve-config
     name: Python ${{ matrix.python-version }} / ${{ inputs.package_manager }}
     runs-on: ubuntu-latest
+    continue-on-error: ${{ inputs.allow_failure }}
 
     strategy:
       fail-fast: false
@@ -199,6 +242,7 @@ jobs:
       TESTS_ENABLED: ${{ inputs.tests_enabled }}
       LINT_ENABLED: ${{ inputs.lint_enabled }}
       CACHE_ENABLED: ${{ inputs.cache_enabled }}
+      PROJECT_DIRECTORY: ${{ inputs.project_directory }}
       ARTIFACT_NAME: ${{ inputs.artifact_name }}
       VERSION_MANAGEMENT: ${{ inputs.version_management }}
       RELEASE_REPOSITORY: ${{ inputs.release_repository }}
@@ -209,6 +253,7 @@ jobs:
       RELEASE_PASSWORD: ${{ secrets.release_password }}
       RELEASE_TOKEN: ${{ secrets.release_token }}
       MATRIX_PYTHON_VERSION: ${{ matrix.python-version }}
+      BUILD_REPORT_PATH: .python-ci-reports/${{ inputs.artifact_name }}-report-py${{ matrix.python-version }}.json
 
     steps:
       - name: Checkout repository
@@ -217,6 +262,7 @@ jobs:
           fetch-depth: 0
 
       - name: Checkout workflow support files
+        if: ${{ needs.resolve-config.outputs.workflow_repository != '' && needs.resolve-config.outputs.workflow_ref != '' }}
         uses: actions/checkout@v4
         with:
           repository: ${{ needs.resolve-config.outputs.workflow_repository }}
@@ -226,11 +272,22 @@ jobs:
             scripts
             workflow-config.json
 
+      - name: Prepare local workflow support files
+        if: ${{ needs.resolve-config.outputs.workflow_repository == '' || needs.resolve-config.outputs.workflow_ref == '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .python-ci-workflow
+          mkdir -p .python-ci-workflow
+          cp -R ./scripts .python-ci-workflow/scripts
+          cp ./workflow-config.json .python-ci-workflow/workflow-config.json
+
       - name: Validate inputs and resolve commands
         shell: bash
         run: bash ./.python-ci-workflow/scripts/github/resolve_inputs.sh
 
       - name: Restore cache
+        id: cache
         if: ${{ inputs.cache_enabled }}
         uses: actions/cache@v4
         with:
@@ -239,6 +296,23 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ env.CACHE_KEY_PREFIX }}-
             ${{ runner.os }}-${{ inputs.package_manager }}-
+
+      - name: Record cache status
+        if: ${{ inputs.cache_enabled }}
+        shell: bash
+        env:
+          CACHE_HIT: ${{ steps.cache.outputs.cache-hit }}
+        run: |
+          if [[ "${CACHE_HIT}" == "true" ]]; then
+            bash ./.python-ci-workflow/scripts/github/record_stage_status.sh cache hit
+          else
+            bash ./.python-ci-workflow/scripts/github/record_stage_status.sh cache miss
+          fi
+
+      - name: Mark cache skipped
+        if: ${{ !inputs.cache_enabled }}
+        shell: bash
+        run: bash ./.python-ci-workflow/scripts/github/mark_stage_skipped.sh cache
 
       - name: Setup dependencies and tooling
         shell: bash
@@ -272,8 +346,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.artifact_name }}-py${{ matrix.python-version }}
-          path: dist/*
+          path: ${{ inputs.project_directory }}/dist/*
           if-no-files-found: error
+
+      - name: Record artifact status
+        shell: bash
+        run: bash ./.python-ci-workflow/scripts/github/record_stage_status.sh artifact success
 
       - name: Validate release version
         if: ${{ inputs.release_repository != '' && matrix.python-version == needs.resolve-config.outputs.selected_primary_python_version }}
@@ -304,3 +382,16 @@ jobs:
         if: ${{ always() }}
         shell: bash
         run: bash ./.python-ci-workflow/scripts/github/write_summary.sh
+
+      - name: Write build report
+        if: ${{ always() }}
+        shell: bash
+        run: python ./.python-ci-workflow/scripts/github/write_build_report.py
+
+      - name: Upload build report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}-report-py${{ matrix.python-version }}
+          path: ${{ env.BUILD_REPORT_PATH }}
+          if-no-files-found: error

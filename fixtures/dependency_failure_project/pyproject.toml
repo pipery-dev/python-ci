@@ -1,0 +1,10 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fixture-dependency-failure-project"
+version = "0.6.0"
+description = "Fixture project for dependency resolution failure coverage."
+readme = "README.md"
+requires-python = ">=3.12"

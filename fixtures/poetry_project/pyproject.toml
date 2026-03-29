@@ -1,0 +1,20 @@
+[build-system]
+requires = ["poetry-core>=1.9.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "fixture-poetry-project"
+version = "0.2.0"
+description = "Fixture project for reusable poetry workflow tests."
+authors = ["python-ci <ci@example.com>"]
+packages = [{ include = "fixture_poetry_project", from = "src" }]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.5"
+ruff = "^0.11.2"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

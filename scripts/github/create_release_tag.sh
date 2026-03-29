@@ -17,3 +17,4 @@ else
 fi
 
 echo "TAG_DURATION=$(( $(date +%s) - start_time ))" >> "${GITHUB_ENV}"
+echo "TAG_STATUS=success" >> "${GITHUB_ENV}"

@@ -3,6 +3,22 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+bash "${script_dir}/enter_project_directory.sh"
+
+resolve_finished="false"
+
+record_resolve_failure() {
+  local exit_code="$?"
+
+  if [[ "${resolve_finished}" != "true" ]]; then
+    echo "RESOLVE_STATUS=failed" >> "${GITHUB_ENV}"
+  fi
+
+  exit "${exit_code}"
+}
+
+trap record_resolve_failure ERR
+
 case "${PACKAGE_MANAGER}" in
   pip|poetry|uv) ;;
   *)
@@ -75,4 +91,8 @@ fi
       ;;
   esac
   echo "EOF"
+  echo "RESOLVE_STATUS=success"
 } >> "${GITHUB_ENV}"
+
+resolve_finished="true"
+trap - ERR

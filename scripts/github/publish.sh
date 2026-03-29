@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+bash "${script_dir}/enter_project_directory.sh"
+
 start_time="$(date +%s)"
 
 if [[ -z "${RELEASE_TOKEN}" && ( -z "${RELEASE_USERNAME}" || -z "${RELEASE_PASSWORD}" ) ]]; then
   echo "Release credentials were not provided; skipping publish."
   echo "PUBLISH_DURATION=skipped" >> "${GITHUB_ENV}"
+  echo "PUBLISH_STATUS=skipped" >> "${GITHUB_ENV}"
   exit 0
 fi
 
@@ -24,3 +28,4 @@ else
 fi
 
 echo "PUBLISH_DURATION=$(( $(date +%s) - start_time ))" >> "${GITHUB_ENV}"
+echo "PUBLISH_STATUS=success" >> "${GITHUB_ENV}"

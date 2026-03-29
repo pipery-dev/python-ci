@@ -1,0 +1,22 @@
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "fixture-uv-project"
+version = "0.3.0"
+description = "Fixture project for reusable uv workflow tests."
+readme = "README.md"
+requires-python = ">=3.12"
+
+[dependency-groups]
+dev = [
+  "pytest==8.3.5",
+  "ruff==0.11.2",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/fixture_uv_project"]

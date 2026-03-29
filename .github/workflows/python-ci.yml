@@ -190,7 +190,7 @@ jobs:
 
       - name: Checkout repository for local workflow support
         if: ${{ steps.workflow_support.outputs.repository == '' || steps.workflow_support.outputs.ref == '' }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
@@ -206,7 +206,7 @@ jobs:
 
       - name: Checkout workflow support files
         if: ${{ steps.workflow_support.outputs.repository != '' && steps.workflow_support.outputs.ref != '' }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: ${{ steps.workflow_support.outputs.repository }}
           ref: ${{ steps.workflow_support.outputs.ref }}
@@ -257,13 +257,13 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Checkout workflow support files
         if: ${{ needs.resolve-config.outputs.workflow_repository != '' && needs.resolve-config.outputs.workflow_ref != '' }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: ${{ needs.resolve-config.outputs.workflow_repository }}
           ref: ${{ needs.resolve-config.outputs.workflow_ref }}

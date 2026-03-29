@@ -343,7 +343,7 @@ jobs:
         run: bash ./.python-ci-workflow/scripts/github/mark_stage_skipped.sh lint
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ inputs.artifact_name }}-py${{ matrix.python-version }}
           path: ${{ inputs.project_directory }}/dist/*
@@ -390,7 +390,7 @@ jobs:
 
       - name: Upload build report
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ inputs.artifact_name }}-report-py${{ matrix.python-version }}
           path: ${{ env.BUILD_REPORT_PATH }}

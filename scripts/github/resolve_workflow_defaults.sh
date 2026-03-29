@@ -38,7 +38,13 @@ print(str(versions[0]))
 PY
 )"
 
-git_commit_short_hash="$(git rev-parse --short HEAD)"
+if git rev-parse --short HEAD >/dev/null 2>&1; then
+  git_commit_short_hash="$(git rev-parse --short HEAD)"
+elif [[ -n "${GITHUB_SHA:-}" ]]; then
+  git_commit_short_hash="${GITHUB_SHA:0:7}"
+else
+  git_commit_short_hash="unknown"
+fi
 
 {
   echo "python_versions=${resolved_python_versions}"

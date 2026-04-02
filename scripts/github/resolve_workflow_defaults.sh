@@ -52,5 +52,5 @@ fi
   echo "config_default_python_version=${config_default_python_version}"
   echo "workflow_version=${workflow_version}"
   echo "git_commit_short_hash=${git_commit_short_hash}"
-  echo "workflow_release_version=${workflow_version}-${config_default_python_version}"
+  echo "workflow_release_version=${workflow_version}-${selected_primary_python_version}"
 } >> "${GITHUB_OUTPUT}"

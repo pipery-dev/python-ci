@@ -11,9 +11,9 @@ The action and workflow both support Python package builds with `pip`, `poetry`,
 
 ## What Changed
 
-Release orchestration, fixture-based validation, and repository self-release automation have been decoupled from this repository into [`release-harness`](/Users/hamed/Project/pipery-dev/python-ci/release-harness).
+Release orchestration, fixture-based validation, and repository self-release automation have been decoupled from this repository into the sibling [`python-ci-release`](/Users/hamed/Project/pipery-dev/python-ci-release) repository.
 
-That folder is intended to become a separate release-harness repository that should:
+That repository is responsible for:
 
 - consume this repo as an action and/or reusable workflow
 - contain fixture projects used for validation
@@ -101,7 +101,7 @@ If no custom commands are provided, the automation uses these defaults:
 Additional defaults:
 
 - tests default to `python -m pytest`
-- lint defaults to `ruff check .`, with `flake8 .` used when classic flake8 config files are detected first
+- lint defaults to `flake8 .` when classic flake8 config files are present; otherwise it uses `ruff check .`
 - cache is enabled by default
 - builds must produce a `dist/` directory so artifacts can be uploaded
 - publishing only runs when `release_repository` is set
@@ -114,6 +114,7 @@ It currently defines:
 
 - `workflow_version`
 - `default_python_versions`
+- the reusable-workflow release bundle also includes this file because the workflow resolves defaults from it at runtime
 
 ## Files
 

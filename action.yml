@@ -2,8 +2,8 @@ name: "Pipery Python CI-dev"
 description: "Build, test, lint, and optionally publish a Python project with pip, Poetry, or uv."
 author: "Pipery Team"
 branding:
-  icon: "package"
-  color: "black"
+  icon: "code"
+  color: "purple"
 
 inputs:
   python_versions:

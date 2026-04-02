@@ -1,0 +1,34 @@
+# OS metadata
+.DS_Store
+
+# Python bytecode and caches
+**/__pycache__/
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Python tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+
+# Packaging and build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# Workflow-generated artifacts
+.python-ci-reports/
+.python-ci-workflow/
+
+# Editor settings
+.idea/
+.vscode/

@@ -32,14 +32,14 @@ case "${PACKAGE_MANAGER}" in
     if [[ -f "requirements-dev.txt" ]]; then
       python -m pip install -r requirements-dev.txt
     fi
-    if [[ -f "pyproject.toml" ]]; then
-      python -m pip install -e . || true
+    if [[ -f "pyproject.toml" || -f "setup.cfg" || -f "setup.py" ]]; then
+      python -m pip install -e .
     fi
     if [[ "${TESTS_ENABLED}" == "true" && -z "${CUSTOM_TEST_COMMAND}" ]]; then
-      python -m pip install pytest || true
+      python -m pip install pytest
     fi
     if [[ "${LINT_ENABLED}" == "true" && -z "${CUSTOM_LINT_COMMAND}" ]]; then
-      python -m pip install ruff flake8 || true
+      python -m pip install ruff flake8
     fi
     ;;
   poetry)

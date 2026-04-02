@@ -5,6 +5,15 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 source "${script_dir}/enter_project_directory.sh"
 
+has_flake8_config="false"
+if [[ -f ".flake8" ]]; then
+  has_flake8_config="true"
+elif [[ -f "setup.cfg" ]] && grep -Eq '^\[flake8\]' "setup.cfg"; then
+  has_flake8_config="true"
+elif [[ -f "tox.ini" ]] && grep -Eq '^\[flake8\]' "tox.ini"; then
+  has_flake8_config="true"
+fi
+
 resolve_finished="false"
 
 record_resolve_failure() {
@@ -51,10 +60,10 @@ fi
 
 lint_command="${CUSTOM_LINT_COMMAND}"
 if [[ -z "${lint_command}" ]]; then
-  if [[ -f "ruff.toml" ]] || [[ -f ".ruff.toml" ]] || [[ -f "pyproject.toml" ]]; then
-    lint_command="ruff check ."
-  elif [[ -f ".flake8" ]] || [[ -f "setup.cfg" ]] || [[ -f "tox.ini" ]]; then
+  if [[ "${has_flake8_config}" == "true" ]]; then
     lint_command="flake8 ."
+  elif [[ -f "ruff.toml" ]] || [[ -f ".ruff.toml" ]] || [[ -f "pyproject.toml" ]]; then
+    lint_command="ruff check ."
   else
     lint_command="ruff check ."
   fi
